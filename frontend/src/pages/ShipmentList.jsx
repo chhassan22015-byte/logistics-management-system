@@ -7,6 +7,10 @@ export default function ShipmentList() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   
+  // NAYE STATES: Search aur Filter ke liye
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('All');
+  
   // Local storage se user ka role check karna (Admin check)
   const userRole = localStorage.getItem('role');
 
@@ -28,25 +32,39 @@ export default function ShipmentList() {
   // Status update function (Sirf Admin ke liye)
   const handleStatusChange = async (id, newStatus) => {
     try {
-      // Authorization token automatically API service attach kar degi agar set hai
       const token = localStorage.getItem('token');
       await API.put(`/shipments/${id}/status`, { status: newStatus }, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
       alert('Shipment status updated successfully!');
-      // List dobara fetch karein taake UI refresh ho jaye
       fetchShipments();
     } catch (err) {
       alert(err.response?.data?.message || 'Failed to update status.');
     }
   };
 
+  // FILTER LOGIC: Search aur dropdown ki base par array ko filter karna
+  const filteredShipments = shipments.filter((item) => {
+    const searchLower = searchQuery.toLowerCase();
+    
+    // Tracking ID, Sender, ya Receiver ke naam se dhoondein
+    const matchesSearch = 
+      (item.trackingId && item.trackingId.toLowerCase().includes(searchLower)) ||
+      (item.sender && item.sender.toLowerCase().includes(searchLower)) ||
+      (item.receiver && item.receiver.toLowerCase().includes(searchLower));
+
+    // Status match karein (Agar 'All' hai toh sab theek hai)
+    const matchesStatus = statusFilter === 'All' || item.status === statusFilter;
+
+    return matchesSearch && matchesStatus;
+  });
+
   return (
     <div className="min-h-screen bg-slate-900 text-white flex flex-col p-6">
       
       {/* Top Header */}
-      <div className="flex justify-between items-center mb-8 max-w-7xl mx-auto w-full">
+      <div className="flex justify-between items-center mb-6 max-w-7xl mx-auto w-full">
         <div>
           <h2 className="text-2xl font-bold text-blue-400">All Shipments</h2>
           <p className="text-slate-400 text-sm">Monitor and manage all active delivery orders from database.</p>
@@ -60,6 +78,37 @@ export default function ShipmentList() {
           </Link>
         </div>
       </div>
+
+      {/* --- NAYA HISA: Search aur Filter Bar --- */}
+      <div className="max-w-7xl mx-auto w-full flex flex-col md:flex-row gap-4 mb-6">
+        {/* Search Input */}
+        <div className="flex-1">
+          <input
+            type="text"
+            placeholder="Search by Tracking ID, Sender, or Receiver..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full bg-slate-800 text-white border border-slate-700 rounded-lg px-4 py-2.5 focus:outline-none focus:border-blue-500 transition-colors text-sm"
+          />
+        </div>
+
+        {/* Dropdown Filter */}
+        <div className="w-full md:w-64">
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="w-full bg-slate-800 text-white border border-slate-700 rounded-lg px-4 py-2.5 focus:outline-none focus:border-blue-500 transition-colors cursor-pointer text-sm"
+          >
+            <option value="All">All Statuses</option>
+            <option value="Processing">Processing</option>
+            <option value="In-Transit">In-Transit</option>
+            <option value="Out for Delivery">Out for Delivery</option>
+            <option value="Delivered">Delivered</option>
+            <option value="Cancelled">Cancelled</option>
+          </select>
+        </div>
+      </div>
+      {/* --- NAYA HISA KHATAM --- */}
 
       {/* Error Message */}
       {error && (
@@ -90,14 +139,14 @@ export default function ShipmentList() {
                     Loading shipments from database...
                   </td>
                 </tr>
-              ) : shipments.length === 0 ? (
+              ) : filteredShipments.length === 0 ? (
                 <tr>
                   <td colSpan={userRole === 'admin' ? "7" : "6"} className="p-8 text-center text-slate-400">
-                    No shipments found. Create your first shipment!
+                    No matching shipments found.
                   </td>
                 </tr>
               ) : (
-                shipments.map((item) => (
+                filteredShipments.map((item) => (
                   <tr key={item.id || item._id} className="hover:bg-slate-750 transition-colors">
                     <td className="p-4 font-mono text-blue-400">{item.trackingId}</td>
                     <td className="p-4">{item.sender}</td>
@@ -137,7 +186,6 @@ export default function ShipmentList() {
           </table>
         </div>
       </div>
-
     </div>
   );
 }
